@@ -1,0 +1,2 @@
+; expect: no
+(if #f 'yes 'no)

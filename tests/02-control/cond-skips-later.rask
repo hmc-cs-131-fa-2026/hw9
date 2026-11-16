@@ -1,0 +1,2 @@
+; expect: ok
+(cond (#t 'ok) ((quotient 1 0) 'bad))

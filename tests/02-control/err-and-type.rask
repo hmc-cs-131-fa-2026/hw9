@@ -1,0 +1,2 @@
+; expect: error
+(and #t 5)

@@ -1,0 +1,2 @@
+; expect: 7
+(if #t 7 (quotient 1 0))

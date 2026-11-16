@@ -1,0 +1,2 @@
+; expect: 8
+(if #f (quotient 1 0) 8)

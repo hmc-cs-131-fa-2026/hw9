@@ -1,0 +1,2 @@
+; expect: (a c)
+(map first '((a b) (c d)))

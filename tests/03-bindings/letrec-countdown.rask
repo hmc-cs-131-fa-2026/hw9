@@ -1,0 +1,2 @@
+; expect: (5 4 3 2 1)
+(letrec ((down (lambda (n) (if (= n 0) '() (cons n (down (- n 1))))))) (down 5))

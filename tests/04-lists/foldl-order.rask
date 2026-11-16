@@ -1,0 +1,2 @@
+; expect: (c b a)
+(foldl cons '() '(a b c))

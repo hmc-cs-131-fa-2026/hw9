@@ -1,0 +1,2 @@
+; expect: #t
+(or #t (= 1 (quotient 1 0)))

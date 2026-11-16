@@ -1,0 +1,2 @@
+; expect: outer
+(let ((x 'outer)) (let ((f (lambda () x))) (let ((x 'inner)) (f))))

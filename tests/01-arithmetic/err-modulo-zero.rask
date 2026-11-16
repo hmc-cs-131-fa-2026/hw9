@@ -1,0 +1,2 @@
+; expect: error
+(modulo 1 0)

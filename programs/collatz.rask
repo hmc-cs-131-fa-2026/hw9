@@ -1,0 +1,24 @@
+; Collatz in Raskell.
+;
+; This program is ONE S-expression. Its value is a function of n that returns
+; a list of four things about the Collatz sequence that starts at n:
+;
+;     (sequence  length  even-elements  reversed-sequence)
+;
+; For example, for n = 6 the result is
+;     ((6 3 10 5 16 8 4 2 1) 9 (6 10 16 8 4 2) (1 2 4 8 16 5 10 3 6))
+;
+; Run it on 6 (and on 7) with:
+;     ./rask --lib rasklib/list-library.rask --file programs/collatz.rask 6 7
+;
+; TODO (Stage 6): replace each 'TODO-... symbol. Keep the overall shape.
+(let ((next (lambda (n)
+              'TODO-next)))            ; Milestone A: one Collatz step
+  (letrec ((collatz (lambda (n)
+                      'TODO-collatz)))  ; Milestone B: the whole sequence, down to 1
+    (lambda (n)
+      (let ((sequence (collatz n)))
+        (list sequence
+              'TODO-length              ; Milestone C: use foldl
+              'TODO-evens               ;              use filter
+              'TODO-reversed)))))       ;              use reverse

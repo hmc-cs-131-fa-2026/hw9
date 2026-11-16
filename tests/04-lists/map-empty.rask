@@ -1,0 +1,2 @@
+; expect: ()
+(map (lambda (x) x) '())

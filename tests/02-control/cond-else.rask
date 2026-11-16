@@ -1,0 +1,2 @@
+; expect: z
+(cond (#f 'a) (else 'z))

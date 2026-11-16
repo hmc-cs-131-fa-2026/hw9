@@ -1,0 +1,2 @@
+; expect: 6
+(foldl (lambda (x acc) (+ x acc)) 0 '(1 2 3))

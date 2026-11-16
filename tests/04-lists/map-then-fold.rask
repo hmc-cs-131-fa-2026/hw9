@@ -1,0 +1,2 @@
+; expect: 14
+(foldl (lambda (x acc) (+ x acc)) 0 (map (lambda (x) (* x x)) '(1 2 3)))

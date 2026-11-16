@@ -1,0 +1,2 @@
+; expect: error
+(map 'f '(1 2))

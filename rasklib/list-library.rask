@@ -1,0 +1,24 @@
+; Your list library, written IN RASKELL (not in Haskell).
+;
+; This file is ONE parenthesized list of definitions, each of the form
+;     (name expression)
+; The definitions are loaded in order, so a later one can use an earlier one.
+; A definition whose expression is a lambda can also call itself.
+;
+; Load the library in front of any program with --lib:
+;     ./rask --lib rasklib/list-library.rask --file some-program.rask
+;
+; TODO (Stage 5): replace each 'TODO with a real body. Use the features you
+; implemented (foldl, cons, if, ...). Don't add filter or reverse to RaskEval.hs.
+(
+  ; (reverse xs): the elements of xs in the opposite order.
+  ;   (reverse '(a b c))  produces  (c b a)
+  (reverse (lambda (xs)
+             'TODO))
+
+  ; (filter keep? xs): the elements x of xs for which (keep? x) is #t,
+  ; in their original order.
+  ;   (filter (lambda (x) (< x 4)) '(1 5 3 7 2))  produces  (1 3 2)
+  (filter (lambda (keep? xs)
+            'TODO))
+)
