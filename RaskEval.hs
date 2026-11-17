@@ -36,8 +36,7 @@ initEnv = Map.fromList [ (name, VPrim name f) | (name, f) <- primitives ]
 -- Evaluation
 --------------------------------------------------------------------------------
 
--- | Evaluate an expression in an environment, producing a value. If the
--- program is wrong, evaluation stops with an error message.
+-- | Evaluate an expression in an environment, producing a value.
 eval :: Env -> SExpr -> Value
 
 -- Numbers and Booleans evaluate to themselves.
@@ -72,7 +71,8 @@ apply :: Value -> [Value] -> Value
 apply (VPrim _ f) args = f args
 apply (VClosure closureEnv params body) args
     | length params /= length args =
-        error (arityMessage "procedure" (length params) (length args))
+        error ("procedure: expected " ++ show (length params)
+               ++ " arguments, got " ++ show (length args))
     | otherwise =
         eval (envExtend params args closureEnv) body
 apply notAFunction _ =
@@ -80,28 +80,29 @@ apply notAFunction _ =
 
 --------------------------------------------------------------------------------
 -- Special forms
+--
+-- Each one receives its parts UNEVALUATED, as a list of SExprs.
 --------------------------------------------------------------------------------
 
 -- | (quote e): return e as data, without evaluating it.
 evalQuote :: [SExpr] -> Value
 evalQuote [e] = quoteToValue e
-evalQuote es  = error (arityMessage "quote" 1 (length es))
 
 -- | (lambda (params...) body): make a closure that remembers the CURRENT
 -- environment (that's what makes scope lexical).
 evalLambda :: Env -> [SExpr] -> Value
-evalLambda env [paramList, body] = VClosure env (parameterList paramList) body
-evalLambda _ _ = error "lambda: expected (lambda (params...) body)"
+evalLambda env [SList params, body] = VClosure env (map symbolName params) body
 
 -- | (if test then else): evaluate test, then evaluate ONLY the chosen branch.
 evalIf :: Env -> [SExpr] -> Value
+-- Hint: use case on the value of the test, as described on the HW page.
 -- TODO (Stage 2): replace the line below.
 evalIf _ _ = notImplemented "if"
 
 -- | (cond (test result) ... (else result)): try the tests in order, and
 -- evaluate the result of the first one that is #t.
 evalCond :: Env -> [SExpr] -> Value
--- Hint: condClauses (in RaskAST.hs) checks the clauses' shapes for you.
+-- Hint: one equation for an else clause, one for a (test result) clause.
 -- TODO (Stage 2): replace the line below.
 evalCond _ _ = notImplemented "cond"
 
@@ -120,7 +121,6 @@ evalOr _ _ = notImplemented "or"
 --
 --   ((lambda (name ...) body) e ...)
 evalLet :: Env -> [SExpr] -> Value
--- Hint: bindingList (in RaskAST.hs) checks the bindings' shape for you.
 -- TODO (Stage 3): replace the line below.
 evalLet _ _ = notImplemented "let"
 
@@ -132,19 +132,17 @@ evalLet _ _ = notImplemented "let"
 -- definition directly: env' mentions the closure and the closure mentions
 -- env'. Laziness makes it work, because neither is inspected until f is called.
 evalLetrec :: Env -> [SExpr] -> Value
-evalLetrec env [bindings, body] =
-    case bindingList "letrec" bindings of
-        [(f, SList [SSymbol "lambda", paramList, fbody])] ->
-            let closure = VClosure env' (parameterList paramList) fbody
-                env'    = Map.insert f closure env
-            in  eval env' body
-        _ -> error "letrec: expected exactly one binding of the form (f (lambda (params...) body))"
-evalLetrec _ _ = error "letrec: expected (letrec ((f (lambda (params...) body))) body)"
+evalLetrec env [SList [SList [SSymbol f, SList [SSymbol "lambda", SList params, fbody]]], body] =
+    let closure = VClosure env' (map symbolName params) fbody
+        env'    = Map.insert f closure env
+    in  eval env' body
 
 --------------------------------------------------------------------------------
 -- Primitive operations
 --
 -- Each primitive receives its arguments ALREADY EVALUATED, as a list of values.
+-- It only needs an equation for arguments of the right shape. Anything else
+-- matches no equation, and Raskell reports that as an error.
 --------------------------------------------------------------------------------
 
 -- | Every primitive, by the name a Raskell program uses for it.
@@ -157,17 +155,17 @@ primitives =
     , ("list",     primList)
     , ("append",   primAppend)
       -- arithmetic
-    , ("+",        arith "+" (+))
-    , ("-",        arith "-" (-))
-    , ("*",        arith "*" (*))
+    , ("+",        arith (+))
+    , ("-",        arith (-))
+    , ("*",        arith (*))
     , ("quotient", primQuotient)
     , ("modulo",   primModulo)
       -- comparisons
-    , ("=",        compareWith "="  (==))
-    , ("<",        compareWith "<"  (<))
-    , (">",        compareWith ">"  (>))
-    , ("<=",       compareWith "<=" (<=))
-    , (">=",       compareWith ">=" (>=))
+    , ("=",        compareWith (==))
+    , ("<",        compareWith (<))
+    , (">",        compareWith (>))
+    , ("<=",       compareWith (<=))
+    , (">=",       compareWith (>=))
       -- Booleans
     , ("not",      primNot)
       -- higher-order list operations
@@ -177,24 +175,15 @@ primitives =
 
 -- | (cons x xs): a new list whose first element is x and the rest is xs.
 primCons :: [Value] -> Value
-primCons [x, xs] = VList (x : expectList "cons" xs)
-primCons args    = error (arityMessage "cons" 2 (length args))
+primCons [x, VList xs] = VList (x : xs)
 
 -- | (first xs): the first element of a nonempty list.
 primFirst :: [Value] -> Value
-primFirst [xs] =
-    case expectList "first" xs of
-        (x : _) -> x
-        []      -> error "first: expected a nonempty list, got ()"
-primFirst args = error (arityMessage "first" 1 (length args))
+primFirst [VList (x : _)] = x
 
 -- | (rest xs): everything after the first element of a nonempty list.
 primRest :: [Value] -> Value
-primRest [xs] =
-    case expectList "rest" xs of
-        (_ : rest) -> VList rest
-        []         -> error "rest: expected a nonempty list, got ()"
-primRest args = error (arityMessage "rest" 1 (length args))
+primRest [VList (_ : rest)] = VList rest
 
 -- | (list v ...): a list of all the arguments.
 primList :: [Value] -> Value
@@ -207,13 +196,12 @@ primAppend :: [Value] -> Value
 primAppend _ = notImplemented "append"
 
 -- | A binary arithmetic operation on two numbers.
-arith :: String -> (Integer -> Integer -> Integer) -> [Value] -> Value
--- For example, the entry ("+", arith "+" (+)) in the table above means that
--- (+ 3 5) runs  arith "+" (+) [VNumber 3, VNumber 5].
--- Hint: pattern-match on the argument list, as primCons does, and use
--- expectNumber (in RaskAST.hs) to check each argument.
+arith :: (Integer -> Integer -> Integer) -> [Value] -> Value
+-- For example, the entry ("+", arith (+)) in the table above means that
+-- (+ 3 5) runs  arith (+) [VNumber 3, VNumber 5].
+-- Hint: pattern-match the arguments you expect, as primCons does.
 -- TODO (Stage 1): replace the line below.
-arith op _ _ = notImplemented op
+arith _ _ = notImplemented "arithmetic"
 
 -- | (quotient a b): integer division, rounding toward zero (like Racket).
 primQuotient :: [Value] -> Value
@@ -226,9 +214,9 @@ primModulo :: [Value] -> Value
 primModulo _ = notImplemented "modulo"
 
 -- | A binary comparison of two numbers.
-compareWith :: String -> (Integer -> Integer -> Bool) -> [Value] -> Value
+compareWith :: (Integer -> Integer -> Bool) -> [Value] -> Value
 -- TODO (Stage 1): replace the line below.
-compareWith op _ _ = notImplemented op
+compareWith _ _ = notImplemented "comparison"
 
 -- | (not b): the opposite Boolean.
 primNot :: [Value] -> Value
