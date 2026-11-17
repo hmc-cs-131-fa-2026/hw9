@@ -16,12 +16,12 @@ import qualified Data.Map as Map
 -- Environments
 --------------------------------------------------------------------------------
 
--- | Look up a name, or explain that it isn't bound.
-envLookup :: String -> Env -> Either String Value
+-- | Look up a name, or stop with an error if it isn't bound.
+envLookup :: String -> Env -> Value
 envLookup name env =
     case Map.lookup name env of
-        Just v  -> Right v
-        Nothing -> Left ("unbound identifier: " ++ name)
+        Just v  -> v
+        Nothing -> error ("unbound identifier: " ++ name)
 
 -- | Bind several names to several values, on top of an existing environment.
 -- (New bindings shadow old ones with the same name.)
@@ -36,19 +36,19 @@ initEnv = Map.fromList [ (name, VPrim name f) | (name, f) <- primitives ]
 -- Evaluation
 --------------------------------------------------------------------------------
 
--- | Evaluate an expression in an environment, producing either an error
--- message (Left) or a value (Right).
-eval :: Env -> SExpr -> Either String Value
+-- | Evaluate an expression in an environment, producing a value. If the
+-- program is wrong, evaluation stops with an error message.
+eval :: Env -> SExpr -> Value
 
 -- Numbers and Booleans evaluate to themselves.
-eval _   (SNumber n) = Right (VNumber n)
-eval _   (SBool b)   = Right (VBool b)
+eval _   (SNumber n) = VNumber n
+eval _   (SBool b)   = VBool b
 
 -- A symbol, when evaluated, is a variable: look it up.
 eval env (SSymbol name) = envLookup name env
 
 -- () is not a valid expression (quote it to get the empty list).
-eval _   (SList []) = Left "empty application: () (did you mean '()?)"
+eval _   (SList []) = error "empty application: () (did you mean '()?)"
 
 -- Special forms: each has its own evaluation rule.
 eval _   (SList (SSymbol "quote"  : parts)) = evalQuote  parts
@@ -62,58 +62,56 @@ eval env (SList (SSymbol "letrec" : parts)) = evalLetrec env parts
 
 -- Anything else in parentheses is an ordinary application: evaluate the
 -- function and ALL the arguments (call by value), then apply.
-eval env (SList (fexpr : argexprs)) = do
-    f    <- eval env fexpr
-    args <- mapM (eval env) argexprs
-    apply f args
+-- (forceValue and forceAll, from RaskAST.hs, make Haskell finish computing
+-- them before the call. You don't need to read how they work.)
+eval env (SList (fexpr : argexprs)) =
+    apply (forceValue (eval env fexpr)) (forceAll (map (eval env) argexprs))
 
 -- | Apply a function value to already-evaluated arguments.
-apply :: Value -> [Value] -> Either String Value
+apply :: Value -> [Value] -> Value
 apply (VPrim _ f) args = f args
 apply (VClosure closureEnv params body) args
     | length params /= length args =
-        Left (arityMessage "procedure" (length params) (length args))
+        error (arityMessage "procedure" (length params) (length args))
     | otherwise =
         eval (envExtend params args closureEnv) body
 apply notAFunction _ =
-    Left ("not a procedure: " ++ showValue notAFunction)
+    error ("not a procedure: " ++ showValue notAFunction)
 
 --------------------------------------------------------------------------------
 -- Special forms
 --------------------------------------------------------------------------------
 
 -- | (quote e): return e as data, without evaluating it.
-evalQuote :: [SExpr] -> Either String Value
-evalQuote [e] = Right (quoteToValue e)
-evalQuote es  = Left (arityMessage "quote" 1 (length es))
+evalQuote :: [SExpr] -> Value
+evalQuote [e] = quoteToValue e
+evalQuote es  = error (arityMessage "quote" 1 (length es))
 
 -- | (lambda (params...) body): make a closure that remembers the CURRENT
 -- environment (that's what makes scope lexical).
-evalLambda :: Env -> [SExpr] -> Either String Value
-evalLambda env [paramList, body] = do
-    params <- parameterList paramList
-    return (VClosure env params body)
-evalLambda _ _ = Left "lambda: expected (lambda (params...) body)"
+evalLambda :: Env -> [SExpr] -> Value
+evalLambda env [paramList, body] = VClosure env (parameterList paramList) body
+evalLambda _ _ = error "lambda: expected (lambda (params...) body)"
 
 -- | (if test then else): evaluate test, then evaluate ONLY the chosen branch.
-evalIf :: Env -> [SExpr] -> Either String Value
+evalIf :: Env -> [SExpr] -> Value
 -- TODO (Stage 2): replace the line below.
 evalIf _ _ = notImplemented "if"
 
 -- | (cond (test result) ... (else result)): try the tests in order, and
 -- evaluate the result of the first one that is #t.
-evalCond :: Env -> [SExpr] -> Either String Value
+evalCond :: Env -> [SExpr] -> Value
 -- Hint: condClauses (in RaskAST.hs) checks the clauses' shapes for you.
 -- TODO (Stage 2): replace the line below.
 evalCond _ _ = notImplemented "cond"
 
 -- | (and e ...): #t unless some e is #f. Stops at the first #f.
-evalAnd :: Env -> [SExpr] -> Either String Value
+evalAnd :: Env -> [SExpr] -> Value
 -- TODO (Stage 2): replace the line below.
 evalAnd _ _ = notImplemented "and"
 
 -- | (or e ...): #f unless some e is #t. Stops at the first #t.
-evalOr :: Env -> [SExpr] -> Either String Value
+evalOr :: Env -> [SExpr] -> Value
 -- TODO (Stage 2): replace the line below.
 evalOr _ _ = notImplemented "or"
 
@@ -121,7 +119,7 @@ evalOr _ _ = notImplemented "or"
 -- evaluate body with the names bound. Implemented by translating into
 --
 --   ((lambda (name ...) body) e ...)
-evalLet :: Env -> [SExpr] -> Either String Value
+evalLet :: Env -> [SExpr] -> Value
 -- Hint: bindingList (in RaskAST.hs) checks the bindings' shape for you.
 -- TODO (Stage 3): replace the line below.
 evalLet _ _ = notImplemented "let"
@@ -133,17 +131,15 @@ evalLet _ _ = notImplemented "let"
 -- bound to... that same closure. Haskell lets us write that circular
 -- definition directly: env' mentions the closure and the closure mentions
 -- env'. Laziness makes it work, because neither is inspected until f is called.
-evalLetrec :: Env -> [SExpr] -> Either String Value
-evalLetrec env [bindings, body] = do
-    pairs <- bindingList "letrec" bindings
-    case pairs of
-        [(f, SList [SSymbol "lambda", paramList, fbody])] -> do
-            params <- parameterList paramList
-            let closure = VClosure env' params fbody
+evalLetrec :: Env -> [SExpr] -> Value
+evalLetrec env [bindings, body] =
+    case bindingList "letrec" bindings of
+        [(f, SList [SSymbol "lambda", paramList, fbody])] ->
+            let closure = VClosure env' (parameterList paramList) fbody
                 env'    = Map.insert f closure env
-            eval env' body
-        _ -> Left "letrec: expected exactly one binding of the form (f (lambda (params...) body))"
-evalLetrec _ _ = Left "letrec: expected (letrec ((f (lambda (params...) body))) body)"
+            in  eval env' body
+        _ -> error "letrec: expected exactly one binding of the form (f (lambda (params...) body))"
+evalLetrec _ _ = error "letrec: expected (letrec ((f (lambda (params...) body))) body)"
 
 --------------------------------------------------------------------------------
 -- Primitive operations
@@ -152,7 +148,7 @@ evalLetrec _ _ = Left "letrec: expected (letrec ((f (lambda (params...) body))) 
 --------------------------------------------------------------------------------
 
 -- | Every primitive, by the name a Raskell program uses for it.
-primitives :: [(String, [Value] -> Either String Value)]
+primitives :: [(String, [Value] -> Value)]
 primitives =
     [ -- lists
       ("cons",     primCons)
@@ -180,70 +176,67 @@ primitives =
     ]
 
 -- | (cons x xs): a new list whose first element is x and the rest is xs.
-primCons :: [Value] -> Either String Value
-primCons args = do
-    (x, xsv) <- twoArgs "cons" args
-    xs <- expectList "cons" xsv
-    return (VList (x : xs))
+primCons :: [Value] -> Value
+primCons [x, xs] = VList (x : expectList "cons" xs)
+primCons args    = error (arityMessage "cons" 2 (length args))
 
 -- | (first xs): the first element of a nonempty list.
-primFirst :: [Value] -> Either String Value
-primFirst args = do
-    xsv <- oneArg "first" args
-    xs  <- expectList "first" xsv
-    case xs of
-        (x : _) -> Right x
-        []      -> Left "first: expected a nonempty list, got ()"
+primFirst :: [Value] -> Value
+primFirst [xs] =
+    case expectList "first" xs of
+        (x : _) -> x
+        []      -> error "first: expected a nonempty list, got ()"
+primFirst args = error (arityMessage "first" 1 (length args))
 
 -- | (rest xs): everything after the first element of a nonempty list.
-primRest :: [Value] -> Either String Value
-primRest args = do
-    xsv <- oneArg "rest" args
-    xs  <- expectList "rest" xsv
-    case xs of
-        (_ : rest) -> Right (VList rest)
-        []         -> Left "rest: expected a nonempty list, got ()"
+primRest :: [Value] -> Value
+primRest [xs] =
+    case expectList "rest" xs of
+        (_ : rest) -> VList rest
+        []         -> error "rest: expected a nonempty list, got ()"
+primRest args = error (arityMessage "rest" 1 (length args))
 
 -- | (list v ...): a list of all the arguments.
-primList :: [Value] -> Either String Value
+primList :: [Value] -> Value
 -- TODO (Stage 4): replace the line below.
 primList _ = notImplemented "list"
 
 -- | (append xs ys): the elements of xs followed by the elements of ys.
-primAppend :: [Value] -> Either String Value
+primAppend :: [Value] -> Value
 -- TODO (Stage 4): replace the line below.
 primAppend _ = notImplemented "append"
 
 -- | A binary arithmetic operation on two numbers.
-arith :: String -> (Integer -> Integer -> Integer) -> [Value] -> Either String Value
+arith :: String -> (Integer -> Integer -> Integer) -> [Value] -> Value
 -- For example, the entry ("+", arith "+" (+)) in the table above means that
 -- (+ 3 5) runs  arith "+" (+) [VNumber 3, VNumber 5].
--- Hint: twoNumbers (in RaskAST.hs) does the checking for you.
+-- Hint: pattern-match on the argument list, as primCons does, and use
+-- expectNumber (in RaskAST.hs) to check each argument.
 -- TODO (Stage 1): replace the line below.
 arith op _ _ = notImplemented op
 
 -- | (quotient a b): integer division, rounding toward zero (like Racket).
-primQuotient :: [Value] -> Either String Value
+primQuotient :: [Value] -> Value
 -- TODO (Stage 1): replace the line below.
 primQuotient _ = notImplemented "quotient"
 
 -- | (modulo a b): the remainder, with the sign of b (like Racket).
-primModulo :: [Value] -> Either String Value
+primModulo :: [Value] -> Value
 -- TODO (Stage 1): replace the line below.
 primModulo _ = notImplemented "modulo"
 
 -- | A binary comparison of two numbers.
-compareWith :: String -> (Integer -> Integer -> Bool) -> [Value] -> Either String Value
+compareWith :: String -> (Integer -> Integer -> Bool) -> [Value] -> Value
 -- TODO (Stage 1): replace the line below.
 compareWith op _ _ = notImplemented op
 
 -- | (not b): the opposite Boolean.
-primNot :: [Value] -> Either String Value
+primNot :: [Value] -> Value
 -- TODO (Stage 2): replace the line below.
 primNot _ = notImplemented "not"
 
 -- | (map f xs): the list of (f x) for each x in xs.
-primMap :: [Value] -> Either String Value
+primMap :: [Value] -> Value
 -- Hint: use apply (above) to call f, which might be a primitive OR a closure.
 -- TODO (Stage 4): replace the line below.
 primMap _ = notImplemented "map"
@@ -252,7 +245,7 @@ primMap _ = notImplemented "map"
 -- Racket, f receives the ELEMENT FIRST and the accumulator second:
 --
 --   (foldl f init '(a b c))  =  (f c (f b (f a init)))
-primFoldl :: [Value] -> Either String Value
+primFoldl :: [Value] -> Value
 -- Hint: use apply (above) to call f, which might be a primitive OR a closure.
 -- TODO (Stage 4): replace the line below.
 primFoldl _ = notImplemented "foldl"
@@ -261,6 +254,6 @@ primFoldl _ = notImplemented "foldl"
 -- Placeholder for unfinished parts
 --------------------------------------------------------------------------------
 
--- | The result of an operation you haven't implemented yet.
-notImplemented :: String -> Either String Value
-notImplemented name = Left (name ++ ": not implemented yet")
+-- | Stop with a message saying this part isn't implemented yet.
+notImplemented :: String -> a
+notImplemented name = error (name ++ ": not implemented yet")
