@@ -150,6 +150,7 @@ primitives =
       ("cons",     primCons)
     , ("first",    primFirst)
     , ("rest",     primRest)
+    , ("empty?",   primEmpty)
     , ("list",     primList)
     , ("append",   primAppend)
       -- arithmetic
@@ -182,6 +183,10 @@ primFirst [VList (x : _)] = x
 -- | (rest xs): everything after the first element of a nonempty list.
 primRest :: [Value] -> Value
 primRest [VList (_ : rest)] = VList rest
+
+-- | (empty? xs): #t if the list xs is empty, #f if it has elements.
+primEmpty :: [Value] -> Value
+primEmpty [VList xs] = VBool (null xs)
 
 -- | (list v ...): a list of all the arguments.
 primList :: [Value] -> Value
