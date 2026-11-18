@@ -127,15 +127,13 @@ evalLet _ _ = notImplemented "let"
 -- | (letrec ((f (lambda (params...) fbody))) body): like let, but f's own body
 -- can call f.
 --
--- PROVIDED. The closure for f has to remember an environment in which f is
--- bound to... that same closure. Haskell lets us write that circular
--- definition directly: env' mentions the closure and the closure mentions
--- env'. Laziness makes it work, because neither is inspected until f is called.
+-- An OPTIONAL CHALLENGE: the closure for f has to remember an environment in
+-- which f is bound to... that same closure. Write it yourself if you'd like
+-- to figure out how, or copy the solution from the HW 9 page's letrec section,
+-- which links to a page explaining how it works. Either way is fine.
 evalLetrec :: Env -> [SExpr] -> Value
-evalLetrec env [SList [SList [SSymbol f, SList [SSymbol "lambda", SList params, fbody]]], body] =
-    let closure = VClosure env' (map symbolName params) fbody
-        env'    = Map.insert f closure env
-    in  eval env' body
+-- TODO (Stage 3, optional challenge): replace the line below.
+evalLetrec _ _ = notImplemented "letrec"
 
 --------------------------------------------------------------------------------
 -- Primitive operations
