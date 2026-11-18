@@ -23,6 +23,7 @@ assignment you extend the interpreter, then write a library and a program in Ras
 | `rask`, `run-tests` | Run Raskell (compiling it when needed), and run the tests. |
 | `tests/` | **DO NOT EDIT.** The tests, in one folder per stage. |
 | `programs/swap.rask`, `programs/square.rask` | Two small sample programs. `swap.rask` runs on the starter; `square.rask` needs Stage 1. |
+| `programs/library-demo.rask` | A sample program that uses your list library. It needs Stage 5, and runs with `--lib rasklib/list-library.rask`. |
 
 ## Running (on cs131.cs.hmc.edu)
 

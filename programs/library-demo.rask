@@ -1,0 +1,13 @@
+; A sample Raskell program that uses YOUR list library. It needs Stage 5.
+;
+; Run it with the library loaded in front of it:
+;     ./rask --lib rasklib/list-library.rask --file programs/library-demo.rask
+; It prints ((4 2 7 3 5 1) (1 3 2) (4 2)).
+;
+; Without --lib, reverse and filter are unbound, so you get an error.
+((lambda (nums)
+   (list (reverse nums)                                  ; backward
+         (filter (lambda (x) (< x 4)) nums)              ; the small ones
+         (reverse (filter (lambda (x) (= 0 (modulo x 2)))
+                          nums))))                       ; the evens, backward
+ '(1 5 3 7 2 4))

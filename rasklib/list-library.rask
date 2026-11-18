@@ -6,7 +6,7 @@
 ; A definition whose expression is a lambda can also call itself.
 ;
 ; Load the library in front of any program with --lib:
-;     ./rask --lib rasklib/list-library.rask --file some-program.rask
+;     ./rask --lib rasklib/list-library.rask --file programs/library-demo.rask
 ;
 ; TODO (Stage 5): replace each 'TODO with a real body. Use the features you
 ; implemented (foldl, cons, if, ...). Don't add filter or reverse to RaskEval.hs.
