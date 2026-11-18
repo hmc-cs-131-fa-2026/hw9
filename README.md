@@ -22,6 +22,7 @@ assignment you extend the interpreter, then write a library and a program in Ras
 | `ParserCombinators.hs`, `ParserBase.hs` | **PROVIDED: DO NOT EDIT.** The course's parser-combinator library. |
 | `rask`, `run-tests` | Run Raskell (compiling it when needed), and run the tests. |
 | `tests/` | **DO NOT EDIT.** The tests, in one folder per stage. |
+| `programs/swap.rask`, `programs/square.rask` | Two small sample programs. `swap.rask` runs on the starter; `square.rask` needs Stage 1. |
 
 ## Running (on cs131.cs.hmc.edu)
 

@@ -1,0 +1,10 @@
+; A sample Raskell program. It works with the starter interpreter.
+;
+; Swap the two elements of a pair.
+; Run it with:
+;     ./rask --file programs/swap.rask
+; It prints (world hello).
+((lambda (pair)
+   (cons (first (rest pair))
+         (cons (first pair) '())))
+ '(hello world))

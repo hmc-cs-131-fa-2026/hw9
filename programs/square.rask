@@ -1,0 +1,9 @@
+; A sample Raskell program whose value is a FUNCTION. It needs Stage 1 (*).
+;
+; When a program's value is a function, the file runner applies it to each
+; number on the command line, and prints each result. Run it with:
+;     ./rask --file programs/square.rask 3 12
+; It prints 9, then 144. (Before Stage 1 it gives an error. Try it with
+; rask-reference in place of ./rask to see it work now.)
+(lambda (n)
+  (* n n))
